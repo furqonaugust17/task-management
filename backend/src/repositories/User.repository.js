@@ -8,15 +8,17 @@ export const createUser = async (data) => {
       id: true,
       name: true,
       email: true,
+      role: true,
+      isActive: true,
       createdAt: true,
-      upadtedAt: true,
+      updatedAt: true,
       deletedAt: true
       // password tidak di-select untuk keamanan
     }
   });
 };
 
-// ambil data user bedasarkan email (termasuk password untuk login)
+// ambil data user berdasarkan email (termasuk password untuk login)
 export const getUserByEmail = async (email) => {
   return await Prisma.user.findUnique({ 
     where: { 
@@ -25,7 +27,7 @@ export const getUserByEmail = async (email) => {
   });
 };
 
-// ambil data user bedasarkan email (tanpa password untuk public)
+// ambil data user berdasarkan email (tanpa password untuk public)
 export const getUserByEmailPublic = async (email) => {
   return await Prisma.user.findUnique({ 
     where: { 
@@ -35,35 +37,69 @@ export const getUserByEmailPublic = async (email) => {
       id: true,
       name: true,
       email: true,
+      role: true,
+      isActive: true,
       createdAt: true,
-      upadtedAt: true,
+      updatedAt: true,
       deletedAt: true
     }
   });
 };
 
 // ambil semua data user (exclude yang sudah di soft delete)
-export const getAllUsers = async () => {
-  return await Prisma.user.findMany({
-    where: {
-      deletedAt: null
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      createdAt: true,
-      upadtedAt: true,
-      deletedAt: true
-      // password tidak di-select
-    },
-    orderBy: {
-      createdAt: 'desc'
+export const getAllUsers = async (filters = {}) => {
+  const { includeDeleted = false, role, isActive, page = 1, limit = 10 } = filters;
+  
+  const where = {};
+  
+  if (!includeDeleted) {
+    where.deletedAt = null;
+  }
+  
+  if (role) {
+    where.role = role;
+  }
+  
+  if (typeof isActive === 'boolean') {
+    where.isActive = isActive;
+  }
+
+  const skip = (page - 1) * limit;
+
+  const [users, total] = await Promise.all([
+    Prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        deletedAt: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      skip,
+      take: limit
+    }),
+    Prisma.user.count({ where })
+  ]);
+
+  return {
+    users,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
     }
-  });
+  };
 };
 
-// ambil data user bedasarkan id
+// ambil data user berdasarkan id
 export const getUserById = async (id) => {
   return await Prisma.user.findUnique({
     where: { id },
@@ -71,19 +107,19 @@ export const getUserById = async (id) => {
       id: true,
       name: true,
       email: true,
+      role: true,
+      isActive: true,
       createdAt: true,
-      upadtedAt: true,
+      updatedAt: true,
       deletedAt: true
-      // password tidak di-select
     }
   });
 };
 
-// ambil data user bedasarkan id (include password untuk verifikasi)
+// ambil data user berdasarkan id (include password untuk verifikasi)
 export const getUserByIdWithPassword = async (id) => {
   return await Prisma.user.findUnique({
     where: { id }
-    // include semua field termasuk password
   });
 };
 
@@ -91,15 +127,19 @@ export const getUserByIdWithPassword = async (id) => {
 export const updateUser = async (id, data) => {
   return await Prisma.user.update({ 
     where: { id }, 
-    data,
+    data: {
+      ...data,
+      updatedAt: new Date()
+    },
     select: {
       id: true,
       name: true,
       email: true,
+      role: true,
+      isActive: true,
       createdAt: true,
-      upadtedAt: true,
+      updatedAt: true,
       deletedAt: true
-      // password tidak di-select
     }
   });
 };
@@ -122,7 +162,8 @@ export const softDeleteUser = async (id) => {
   return await Prisma.user.update({
     where: { id },
     data: { 
-      deletedAt: new Date() 
+      deletedAt: new Date(),
+      isActive: false
     },
     select: {
       id: true,
@@ -148,16 +189,17 @@ export const checkEmailExists = async (email, excludeUserId = null) => {
     select: { id: true }
   });
   
-  return !!user; // return true jika ada, false jika tidak
+  return !!user;
 };
 
 // count total users (untuk statistik)
-export const countUsers = async () => {
-  return await Prisma.user.count({
-    where: {
-      deletedAt: null
-    }
-  });
+export const countUsers = async (filters = {}) => {
+  const where = {
+    deletedAt: null,
+    ...filters
+  };
+  
+  return await Prisma.user.count({ where });
 };
 
 // ambil user yang baru saja dibuat (untuk admin dashboard)
@@ -170,6 +212,8 @@ export const getRecentUsers = async (limit = 10) => {
       id: true,
       name: true,
       email: true,
+      role: true,
+      isActive: true,
       createdAt: true
     },
     orderBy: {
@@ -184,12 +228,14 @@ export const restoreUser = async (id) => {
   return await Prisma.user.update({
     where: { id },
     data: {
-      deletedAt: null
+      deletedAt: null,
+      isActive: true
     },
     select: {
       id: true,
       name: true,
       email: true,
+      isActive: true,
       createdAt: true,
       deletedAt: true
     }
@@ -203,12 +249,80 @@ export const getAllUsersIncludingDeleted = async () => {
       id: true,
       name: true,
       email: true,
+      role: true,
+      isActive: true,
       createdAt: true,
-      upadtedAt: true,
+      updatedAt: true,
       deletedAt: true
     },
     orderBy: {
       createdAt: 'desc'
+    }
+  });
+};
+
+// search users by name or email
+export const searchUsers = async (searchTerm, page = 1, limit = 10) => {
+  const skip = (page - 1) * limit;
+  
+  const where = {
+    deletedAt: null,
+    OR: [
+      { name: { contains: searchTerm, mode: 'insensitive' } },
+      { email: { contains: searchTerm, mode: 'insensitive' } }
+    ]
+  };
+
+  const [users, total] = await Promise.all([
+    Prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      skip,
+      take: limit
+    }),
+    Prisma.user.count({ where })
+  ]);
+
+  return {
+    users,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    }
+  };
+};
+
+// Toggle user active status
+export const toggleUserStatus = async (id) => {
+  const user = await getUserById(id);
+  
+  if (!user) {
+    throw new Error('User tidak ditemukan');
+  }
+
+  return await Prisma.user.update({
+    where: { id },
+    data: {
+      isActive: !user.isActive
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      isActive: true
     }
   });
 };
