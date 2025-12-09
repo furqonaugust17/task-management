@@ -1,6 +1,6 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import * as userRepo from "../repositories/User.repository.js";
+import * as userRepo from "../repositories/user.repository.js";
 
 // user register akun
 export const registerUser = async ({ name, email, password }) => {

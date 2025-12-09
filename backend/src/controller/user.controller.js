@@ -7,7 +7,7 @@ import {
     softDelete,
     hardDelete,
     loginUser
-} from "../services/User.Services.js";
+} from "../services/user.service.js";
 
 // register controller
 export const register = async (req,res) =>{
