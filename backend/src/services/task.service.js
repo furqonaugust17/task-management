@@ -47,12 +47,21 @@ export const createNewTask = async (data) => {
         throw new Error('Invalid due date format');
     }
 
+    if (data.dueDate && !isValidDate(data.dueDate)) {
+        throw new Error('Invalid due date format');
+    }
+
+    if (data.reminderAt && !isValidDate(data.reminderAt)) {
+        throw new Error('Invalid reminder date format');
+    }
+
     const payload = {
         title: data.title,
         description: data.description,
         status: data.status || 'todo',
         priority: data.priority || 'medium',
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
+        reminderAt: data.reminderAt ? new Date(data.reminderAt) : null,
         owner: data.owner || null
     };
 
@@ -66,15 +75,23 @@ export const updateTask = async (id, data) => {
         throw new Error('No data provided for update');
     }
 
+    if (data.reminderAt && !isValidDate(data.reminderAt)) {
+        throw new Error('Invalid reminder date format');
+    }
+
     if (data.dueDate && !isValidDate(data.dueDate)) {
         throw new Error('Invalid due date format');
     }
 
-    const allowedFields = ['title', 'description', 'status', 'priority', 'dueDate', 'owner'];
+    const allowedFields = ['title', 'description', 'status', 'priority', 'dueDate', 'reminderAt', 'owner'];
     const payload = pick(data, allowedFields);
 
     if (payload.dueDate) {
         payload.dueDate = new Date(payload.dueDate);
+    }
+
+    if (payload.reminderAt) {
+        payload.reminderAt = new Date(payload.reminderAt);
     }
 
     return await taskRepository.updateTask(id, payload);
