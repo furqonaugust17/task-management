@@ -64,6 +64,33 @@ const router = express.Router();
  *               items:
  *                 $ref: '#/components/schemas/Task'
  */
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Task:
+ *       type: object
+ *       required:
+ *         - title
+ *         - description
+ *       properties:
+ *         # ... properti lain (id, title, description, status, priority) ...
+ *         dueDate:
+ *           type: string
+ *           format: date
+ *           description: Tanggal jatuh tempo (tanpa jam)
+ *         reminderAt:
+ *           type: string
+ *           format: date-time
+ *           description: Waktu spesifik untuk trigger alarm/notifikasi (ISO 8601)
+ *           example: "2025-12-10T09:30:00.000Z"
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ */
 router.get('/', taskController.getTasks);
 
 /**
