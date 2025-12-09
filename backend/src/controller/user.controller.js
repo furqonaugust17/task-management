@@ -13,7 +13,8 @@ import {
     searchUsers,
     toggleUserStatus,
     validateToken,
-    refreshToken
+    refreshToken,
+    AppError
 } from "../services/user.service.js";
 import { asyncHandler } from "../middlewares/error.middleware.js";
 
@@ -77,67 +78,32 @@ export const getAllUsers = asyncHandler(async (req, res) => {
 });
 
 // ambil user berdasarkan id nya
-export const getUserById = async (req, res) => {
-  try {
+export const getUserById = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const user = await listUserById(Number(id));
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User tidak ditemukan"
-      });
-    }
+    const user = await listUserById(id);
 
     res.status(200).json({
-      success: true,
-      data: user
+        success: true,
+        message: "Berhasil mengambil data user",
+        data: user
     });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Terjadi kesalahan server",
-      error: error.message
-    });
-  }
-};
+});
 
 // ambil user berdasarkan emailnya
 export const getUserByEmail = asyncHandler(async (req, res) => {
-    try {
-        const { email } = req.query;
-        const user = await listByEmail(email);
+    const { email } = req.query;
+    const user = await listByEmail(email);
 
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: "User tidak ditemukan"
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            data: user
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: "Terjadi kesalahan server",
-            error: error.message
-        });
-    }
+    res.status(200).json({
+        success: true,
+        message: "Berhasil mengambil data user",
+        data: user
+    });
 });
 
 // search users
 export const searchUsersController = asyncHandler(async (req, res) => {
     const { q, page = 1, limit = 10 } = req.query;
-
-    if (!q) {
-        return res.status(400).json({
-            success: false,
-            message: "Parameter 'q' (search term) harus diisi"
-        });
-    }
 
     const result = await searchUsers(q, parseInt(page), parseInt(limit));
 
@@ -242,22 +208,7 @@ export const toggleUserStatusController = asyncHandler(async (req, res) => {
 export const validateTokenController = asyncHandler(async (req, res) => {
     const token = req.body.token || req.query.token;
 
-    if (!token) {
-        return res.status(400).json({
-            success: false,
-            message: "Token harus disertakan"
-        });
-    }
-
     const result = validateToken(token);
-
-    if (!result.valid) {
-        return res.status(401).json({
-            success: false,
-            message: "Token tidak valid",
-            error: result.error
-        });
-    }
 
     res.status(200).json({
         success: true,
@@ -269,13 +220,6 @@ export const validateTokenController = asyncHandler(async (req, res) => {
 // refresh token
 export const refreshTokenController = asyncHandler(async (req, res) => {
     const token = req.body.token || req.headers['authorization']?.split(' ')[1];
-
-    if (!token) {
-        return res.status(400).json({
-            success: false,
-            message: "Token harus disertakan"
-        });
-    }
 
     const result = await refreshToken(token);
 
