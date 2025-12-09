@@ -3,189 +3,275 @@ import jwt from "jsonwebtoken";
 import * as userRepo from "../repositories/user.repository.js";
 
 const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 // user register akun
 export const registerUser = async ({ name, email, password }) => {
-  // Cek apakah email sudah terdaftar
   const emailExists = await userRepo.checkEmailExists(email);
   if (emailExists) {
-    throw new Error("Email sudah terdaftar");
+    return { success: false, statusCode: 400, message: "Email sudah terdaftar" };
   }
 
   if (password.length < 6) {
-    throw new Error("Password minimal 6 karakter");
+    return { success: false, statusCode: 400, message: "Password minimal 6 karakter" };
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const user = await userRepo.createUser({ name, email, password: hashedPassword });
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+  if (!passwordRegex.test(password)) {
+    return { success: false, statusCode: 400, message: "Password harus mengandung huruf besar, huruf kecil, dan angka" };
+  }
 
-  return user; // Password sudah tidak di-return dari repository
+  const hashedPassword = await bcrypt.hash(password, 12);
+  const user = await userRepo.createUser({
+    name: name.trim(),
+    email: email.toLowerCase().trim(),
+    password: hashedPassword
+  });
+
+  return { success: true, statusCode: 201, data: user };
 };
 
-// ambil semua data user
-export const listUsers = async () => {
-  return await userRepo.getAllUsers(); // Password sudah tidak di-return dari repository
+// ambil semua data user dengan pagination dan filter
+export const listUsers = async (filters) => {
+    return await userRepo.getAllUsers(filters);
 };
 
-// ambil user bedasarkan id
-export const listUSerById = async (id) => {
+// ambil user berdasarkan id
+export const listUserById = async (id) => {
   const user = await userRepo.getUserById(id);
-  
   if (!user) {
-    throw new Error("User tidak ditemukan");
+    return { success: false, statusCode: 404, message: "User tidak ditemukan" };
   }
-  
-  return user; // Password sudah tidak di-return dari repository
-}
+  return { success: true, statusCode: 200, data: user };
+};
 
-// ambil user bedasarkan email
+// ambil user berdasarkan email
 export const listByEmail = async (email) => {
-  const user = await userRepo.getUserByEmailPublic(email);
-  
-  if (!user) {
-    throw new Error("User tidak ditemukan");
-  }
-  
-  return user; // Password sudah tidak di-return dari repository
+    const user = await userRepo.getUserByEmailPublic(email);
+    return user;
 }
 
 // update data user
-export const updateUser = async (updateObject) => {     
-    const { id, password, email, ...dataBody } = updateObject; 
-    
+export const updateUser = async (updateObject) => {
+    const { id, password, email, ...dataBody } = updateObject;
+
     // Jangan izinkan update password lewat endpoint ini
     if (password) {
-      throw new Error("Untuk mengganti password, gunakan endpoint change-password");
+        throw new Error("Untuk mengganti password, gunakan endpoint change-password");
     }
 
     // Jika ada email baru, cek apakah sudah dipakai user lain
     if (email) {
-      const emailExists = await userRepo.checkEmailExists(email, id);
-      if (emailExists) {
-        throw new Error("Email sudah digunakan oleh user lain");
-      }
-      dataBody.email = email;
+        const emailExists = await userRepo.checkEmailExists(email, id);
+        if (emailExists) {
+            throw new Error("Email sudah digunakan oleh user lain");
+        }
+        dataBody.email = email.toLowerCase().trim();
     }
-    
+
+    // Trim nama jika ada
+    if (dataBody.name) {
+        dataBody.name = dataBody.name.trim();
+    }
+
     const updatedUser = await userRepo.updateUser(id, dataBody);
-    
+
     if (!updatedUser) {
-      throw new Error("User tidak ditemukan");
+        throw new Error("User tidak ditemukan");
     }
-    
-    return updatedUser; // Password sudah tidak di-return dari repository
+
+    return updatedUser;
 }
 
-// update password
+// update password dengan validasi ketat
 export const updatePassword = async (id, oldPassword, newPassword) => {
-  // Gunakan fungsi yang include password untuk verifikasi
-  const user = await userRepo.getUserByIdWithPassword(id);
-  
-  if (!user) {
-    throw new Error("User tidak ditemukan");
-  }
+    // Gunakan fungsi yang include password untuk verifikasi
+    const user = await userRepo.getUserByIdWithPassword(id);
 
-  // Verifikasi password lama
-  const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
-  if (!isPasswordValid) {
-    throw new Error("Password lama tidak sesuai");
-  }
+    if (!user) {
+        throw new Error("User tidak ditemukan");
+    }
 
-  if (newPassword.length < 6) {
-    throw new Error("Password baru minimal 6 karakter");
-  }
+    // Cek apakah akun aktif
+    if (!user.isActive) {
+        throw new Error("Akun tidak aktif. Silakan hubungi administrator");
+    }
 
-  // Hash password baru
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
-  
-  // Update password
-  const updatedUser = await userRepo.updateUser(id, { password: hashedPassword });
-  
-  return updatedUser; // Password sudah tidak di-return dari repository
+    // Verifikasi password lama
+    const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
+    if (!isPasswordValid) {
+        throw new Error("Password lama tidak sesuai");
+    }
+
+    // Validasi password baru tidak boleh sama dengan password lama
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+        throw new Error("Password baru harus berbeda dari password lama");
+    }
+
+    // Validasi panjang password
+    if (newPassword.length < 6) {
+        throw new Error("Password baru minimal 6 karakter");
+    }
+
+    // Validasi kekuatan password
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+    if (!passwordRegex.test(newPassword)) {
+        throw new Error("Password baru harus mengandung huruf besar, huruf kecil, dan angka");
+    }
+
+    // Hash password baru dengan salt rounds 12
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    // Update password
+    const updatedUser = await userRepo.updateUser(id, { password: hashedPassword });
+
+    return updatedUser;
 }
 
 // hapus user selamanya
 export const hardDelete = async (id) => {
     const user = await userRepo.hardDeleteUser(id);
-    
+
     if (!user) {
-      throw new Error("User tidak ditemukan");
+        throw new Error("User tidak ditemukan");
     }
-    
+
     return user;
 };
 
 // hapus user sementara
 export const softDelete = async (id) => {
     const user = await userRepo.softDeleteUser(id);
-    
+
     if (!user) {
-      throw new Error("User tidak ditemukan");
+        throw new Error("User tidak ditemukan");
     }
-    
+
     return user;
 };
 
-// login jwt
+// login jwt dengan validasi lengkap
 export const loginUser = async (email, password) => {
-    // Gunakan fungsi yang include password untuk login
-    const user = await userRepo.getUserByEmail(email);
+    const user = await userRepo.getUserByEmail(email.toLowerCase().trim());
 
     if (!user) {
-        throw new Error('Email atau password salah.'); 
+        return { success: false, statusCode: 401, message: "Email atau password salah" };
     }
-
-    // Cek apakah user sudah di soft delete
     if (user.deletedAt) {
-        throw new Error('Akun Anda telah dinonaktifkan. Silakan hubungi administrator.');
+        return { success: false, statusCode: 403, message: "Akun Anda telah dihapus. Silakan hubungi administrator" };
+    }
+    if (!user.isActive) {
+        return { success: false, statusCode: 403, message: "Akun Anda telah dinonaktifkan. Silakan hubungi administrator" };
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
-
     if (!isPasswordValid) {
-        throw new Error('Email atau password salah.');
+        return { success: false, statusCode: 401, message: "Email atau password salah" };
     }
 
-    const payload = {
-        id: user.id,
-        email: user.email,
-        name: user.name
-    };
+    const payload = { id: user.id, email: user.email, name: user.name, role: user.role };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
-    const token = jwt.sign(
-        payload,
-        JWT_SECRET,
-        { expiresIn: '24h' } // Token berlaku 24 jam
-    );
-
-    return { 
-        user: { 
-            id: user.id, 
-            email: user.email, 
-            name: user.name 
-        }, 
-        token 
+    return {
+        success: true,
+        statusCode: 200,
+        data: {
+            user: { id: user.id, email: user.email, name: user.name, role: user.role },
+            token
+        }
     };
 };
 
-// get user statistics (untuk admin dashboard - opsional)
+
+// get user statistics (untuk admin dashboard)
 export const getUserStats = async () => {
-    const totalUsers = await userRepo.countUsers();
-    const recentUsers = await userRepo.getRecentUsers(5);
-    
+    const [totalUsers, activeUsers, inactiveUsers, recentUsers] = await Promise.all([
+        userRepo.countUsers(),
+        userRepo.countUsers({ isActive: true }),
+        userRepo.countUsers({ isActive: false }),
+        userRepo.getRecentUsers(5)
+    ]);
+
     return {
         totalUsers,
+        activeUsers,
+        inactiveUsers,
         recentUsers
     };
 };
 
-// restore soft deleted user (untuk admin - opsional)
+// restore soft deleted user (untuk admin)
 export const restoreDeletedUser = async (id) => {
     const user = await userRepo.restoreUser(id);
-    
+
     if (!user) {
-      throw new Error("User tidak ditemukan");
+        throw new Error("User tidak ditemukan");
     }
-    
+
     return user;
+};
+
+// search users
+export const searchUsers = async (searchTerm, page, limit) => {
+    if (!searchTerm || searchTerm.trim() === '') {
+        throw new Error("Search term tidak boleh kosong");
+    }
+
+    return await userRepo.searchUsers(searchTerm.trim(), page, limit);
+};
+
+// toggle user status (activate/deactivate)
+export const toggleUserStatus = async (id) => {
+    return await userRepo.toggleUserStatus(id);
+};
+
+// validate token
+export const validateToken = (token) => {
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        return { valid: true, data: decoded };
+    } catch (error) {
+        return { valid: false, error: error.message };
+    }
+};
+
+// refresh token
+export const refreshToken = async (oldToken) => {
+    try {
+        const decoded = jwt.verify(oldToken, JWT_SECRET);
+
+        // Cek apakah user masih ada dan aktif
+        const user = await userRepo.getUserById(decoded.id);
+
+        if (!user || !user.isActive || user.deletedAt) {
+            throw new Error('User tidak valid');
+        }
+
+        // Generate token baru
+        const payload = {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role
+        };
+
+        const newToken = jwt.sign(
+            payload,
+            JWT_SECRET,
+            { expiresIn: JWT_EXPIRES_IN }
+        );
+
+        return {
+            token: newToken,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role
+            }
+        };
+    } catch (error) {
+        throw new Error('Token tidak valid atau sudah kadaluarsa');
+    }
 };
