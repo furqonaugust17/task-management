@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,8 +6,6 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-
-// Tabel TaskManagement
 
 enum TaskStatus {
   todo
@@ -27,23 +19,41 @@ enum TaskPriority {
   high
 }
 
+model User {
+  id        String           @id @default(uuid())
+  name      String
+  email     String           @unique
+  password  String
+  role      String           @default("user")
+  isActive  Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  deletedAt DateTime?
+
+  tasks     TaskManagement[]
+
+  @@index([email])
+  @@index([deletedAt])
+  @@map("users")
+}
+
 model TaskManagement {
-  id          String       @id @default(uuid())
-  title       String       @db.VarChar(100)
-  description String       @db.Text
-  
-  status      TaskStatus   @default(todo)
-  priority    TaskPriority @default(medium)
-  
-  dueDate     DateTime?    @db.Date
-   
-  reminderAt  DateTime?
+  id          String      @id @default(uuid())
+  title       String      @db.VarChar(100)
+  description String      @db.Text
 
-  owner       String?      
+  status   TaskStatus   @default(todo)
+  priority TaskPriority @default(medium)
 
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  deletedAt   DateTime?
+  dueDate    DateTime?   @db.Date
+  reminderAt DateTime?
+
+  ownerId String?
+  owner   User?    @relation(fields: [ownerId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   @@map("task_management")
 }
