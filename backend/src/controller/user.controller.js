@@ -6,7 +6,8 @@ import {
     updateUser,
     softDelete,
     hardDelete,
-    loginUser
+    loginUser,
+    updatePassword
 } from "../services/user.service.js";
 
 // register controller
@@ -28,6 +29,38 @@ export const register = async (req,res) =>{
     }
 }
 
+// ambil profil user yang sedang login
+export const getProfile = async (req, res) => {
+    try {
+        // Data user sudah ada di req.user dari middleware authenticateToken
+        const userId = req.user.id;
+        const user = await listUSerById(userId);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User tidak ditemukan"
+            });
+        }
+
+        // Jangan kirim password
+        const { password, ...userWithoutPassword } = user;
+
+        res.status(200).json({
+            success: true,
+            message: "Berhasil mengambil data profil",
+            data: userWithoutPassword
+        });
+    } catch (error) {
+        console.error("error get profile", error.message);
+        res.status(500).json({
+            success: false,
+            message: "Gagal mengambil data profil",
+            error: error.message
+        });
+    }
+}
+
 // ambil semua data user 
 export const getAlluser = async (req,res) => {
     try {
@@ -40,7 +73,7 @@ export const getAlluser = async (req,res) => {
         });
     } catch (error) {
         console.error("error get all user");
-        res.status(200).json({
+        res.status(500).json({
             success: false,
             message: "gagal mengambil semua data user",
             error: error.message
@@ -48,15 +81,25 @@ export const getAlluser = async (req,res) => {
     }
 }
 
-// ambbil user bedasarkan id nya
+// ambil user bedasarkan id nya
 export const getUserById = async (req,res) => {
     try {
         const user = await listUSerById(req.params.id);
 
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User tidak ditemukan"
+            });
+        }
+
+        // Jangan kirim password
+        const { password, ...userWithoutPassword } = user;
+
         res.status(200).json({
             success: true,
             message: "berhasil mengambil data user bedasarkan ID",
-            data: user
+            data: userWithoutPassword
         });
     } catch (error) {
         console.error("error get all user");
@@ -75,10 +118,20 @@ export const getUserByEmails = async (req, res) => {
 
         const user = await listByEmail(emailBody);
 
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User tidak ditemukan"
+            });
+        }
+
+        // Jangan kirim password
+        const { password, ...userWithoutPassword } = user;
+
         res.status(200).json({
             success: true,
             message: "Berhasil mengambil user berdasarkan email",
-            data: user // Data user ada
+            data: userWithoutPassword
         });
 
     } catch (error) {
@@ -102,10 +155,13 @@ export const updateUSers = async (req, res) => {
     
     const user = await updateUser(updateObject);
 
+        // Jangan kirim password
+        const { password, ...userWithoutPassword } = user;
+
         res.status(200).json({
             success: true,
             message: "Berhasil mengupdate user",
-            data: user
+            data: userWithoutPassword
         });
     } catch (error) {
         console.error("error update", error.message)
@@ -117,7 +173,52 @@ export const updateUSers = async (req, res) => {
     }
 }
 
-// hard delte
+// ganti password
+export const changePassword = async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const { oldPassword, newPassword } = req.body;
+
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "Password lama dan password baru harus diisi"
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: "Password baru minimal 6 karakter"
+            });
+        }
+
+        const result = await updatePassword(userId, oldPassword, newPassword);
+
+        res.status(200).json({
+            success: true,
+            message: "Password berhasil diubah",
+            data: result
+        });
+    } catch (error) {
+        console.error("error change password", error.message);
+        
+        if (error.message.includes("Password lama tidak sesuai")) {
+            return res.status(401).json({
+                success: false,
+                message: error.message
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: "Gagal mengubah password",
+            error: error.message
+        });
+    }
+}
+
+// hard delete
 export const hardDeleteController = async (req, res) => {
     try {
         const userId = req.params.id;
@@ -126,7 +227,6 @@ export const hardDeleteController = async (req, res) => {
              return res.status(400).json({ success: false, message: "ID user diperlukan." });
         }
         
-        // 1. Panggil Service Layer yang benar (hardDeleteUser)
         const user = await hardDelete(userId); 
           
         res.status(200).json({
@@ -170,7 +270,6 @@ export const softDeleteController = async (req, res) => {
         });
 
     } catch (error) {
-        // Tangani error 404 dari Prisma di sini (P2025: Record Not Found)
         if (error.code === 'P2025') {
              return res.status(404).json({
                 success: false,

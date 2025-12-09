@@ -1,28 +1,39 @@
 import express from "express";
 import dotenv from "dotenv";
-import { errorHandler } from "./middlewares/error.handler.js";
+import { authenticateToken, authorizeRole, verifyOwnership } from "./middlewares/auth.middleware.js";
 import RouteUser from "./routes/user.routes.js";
 // import swagger
-import swaggerUi from 'swagger-ui-express';
-import swaggerSpec from './config/swagger.js';
+import swaggerUi from "swagger-ui-express";
+import swaggerSpec from "./config/swagger.js";
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-app.get('/api-docs.json', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
+// Swagger docs
+app.get("/api-docs.json", (req, res) => {
+  res.setHeader("Content-Type", "application/json");
   res.send(swaggerSpec);
 });
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-app.use("/api/users", RouteUser);
+// Proteksi semua route user dengan JWT
+app.use("/api/users", authenticateToken, RouteUser);
 
-app.use(errorHandler);
+// Contoh route dengan role-based access control
+app.get("/api/admin", authenticateToken, authorizeRole("admin"), (req, res) => {
+  res.json({ success: true, message: "Halo Admin!" });
+});
 
-app.get('/', (req, res) => {
-    res.send('user API is Ready!');
+// Contoh route dengan ownership check
+app.get("/api/users/:id", authenticateToken, verifyOwnership, (req, res) => {
+  res.json({ success: true, user: req.user });
+});
+
+// Root endpoint
+app.get("/", (req, res) => {
+  res.send("User API is Ready!");
 });
 
 export default app;

@@ -7,8 +7,11 @@ import {
     updateUSers, 
     hardDeleteController, 
     softDeleteController,
-    loginController
+    loginController,
+    getProfile,
+    changePassword
 } from "../controller/user.controller.js";
+import { authenticateToken, verifyOwnership } from "../middlewares/auth.middleware.js";
 
 const RouteUser = express.Router();
 
@@ -21,7 +24,17 @@ const RouteUser = express.Router();
 
 /**
  * @swagger
- * /api/users/register:
+ * components:
+ *   securitySchemes:
+ *     bearerAuth:
+ *       type: http
+ *       scheme: bearer
+ *       bearerFormat: JWT
+ */
+
+/**
+ * @swagger
+ * /users/register:
  *   post:
  *     summary: Registrasi user baru
  *     tags: [Users]
@@ -32,20 +45,21 @@ const RouteUser = express.Router();
  *           schema:
  *             type: object
  *             required:
+ *               - name
  *               - email
  *               - password
  *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Nama lengkap user
  *               email:
  *                 type: string
  *                 description: Email user
  *               password:
  *                 type: string
  *                 description: Password user
- *               nama_lengkap:
- *                 type: string
- *                 description: Nama lengkap user
  *     responses:
- *       201:
+ *       200:
  *         description: User berhasil dibuat
  *       400:
  *         description: Data tidak valid
@@ -54,7 +68,7 @@ RouteUser.post("/register", register);
 
 /**
  * @swagger
- * /api/users/login:
+ * /users/login:
  *   post:
  *     summary: Login user
  *     tags: [Users]
@@ -82,22 +96,44 @@ RouteUser.post("/login", loginController);
 
 /**
  * @swagger
- * /api/users:
+ * /users/profile:
  *   get:
- *     summary: Ambil semua data user
+ *     summary: Ambil profil user yang sedang login
  *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Daftar semua user
+ *         description: Data profil user
+ *       401:
+ *         description: Token tidak valid
  */
-RouteUser.get("/", getAlluser);
+RouteUser.get("/profile", authenticateToken, getProfile);
 
 /**
  * @swagger
- * /api/users/email:
+ * /users:
  *   get:
- *     summary: Ambil user berdasarkan email
+ *     summary: Ambil semua data user (Protected)
  *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Daftar semua user
+ *       401:
+ *         description: Token tidak valid
+ */
+RouteUser.get("/", authenticateToken, getAlluser);
+
+/**
+ * @swagger
+ * /users/email:
+ *   get:
+ *     summary: Ambil user berdasarkan email (Protected)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: email
@@ -108,17 +144,21 @@ RouteUser.get("/", getAlluser);
  *     responses:
  *       200:
  *         description: Data user ditemukan
+ *       401:
+ *         description: Token tidak valid
  *       404:
  *         description: User tidak ditemukan
  */
-RouteUser.get("/email", getUserByEmails);
+RouteUser.get("/email", authenticateToken, getUserByEmails);
 
 /**
  * @swagger
- * /api/users/{id}:
+ * /users/{id}:
  *   get:
- *     summary: Ambil user berdasarkan ID
+ *     summary: Ambil user berdasarkan ID (Protected)
  *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -129,17 +169,21 @@ RouteUser.get("/email", getUserByEmails);
  *     responses:
  *       200:
  *         description: Data user berhasil diambil
+ *       401:
+ *         description: Token tidak valid
  *       404:
  *         description: User tidak ditemukan
  */
-RouteUser.get("/:id", getUserById);
+RouteUser.get("/:id", authenticateToken, getUserById);
 
 /**
  * @swagger
- * /api/users/{id}:
+ * /users/{id}:
  *   put:
- *     summary: Update data user
+ *     summary: Update data user (Hanya user sendiri)
  *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -154,24 +198,69 @@ RouteUser.get("/:id", getUserById);
  *           schema:
  *             type: object
  *             properties:
- *               email:
+ *               name:
  *                 type: string
- *               nama_lengkap:
+ *               email:
  *                 type: string
  *     responses:
  *       200:
  *         description: Data user berhasil diperbarui
+ *       401:
+ *         description: Token tidak valid
+ *       403:
+ *         description: Access denied
  *       404:
  *         description: User tidak ditemukan
  */
-RouteUser.put("/:id", updateUSers);
+RouteUser.put("/:id", authenticateToken, verifyOwnership, updateUSers);
 
 /**
  * @swagger
- * /api/users/hard/{id}:
- *   delete:
- *     summary: Hapus user secara permanen
+ * /users/change-password/{id}:
+ *   put:
+ *     summary: Ganti password user (Hanya user sendiri)
  *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID user
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - oldPassword
+ *               - newPassword
+ *             properties:
+ *               oldPassword:
+ *                 type: string
+ *               newPassword:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Password berhasil diubah
+ *       401:
+ *         description: Token tidak valid atau password lama salah
+ *       403:
+ *         description: Access denied
+ */
+RouteUser.put("/change-password/:id", authenticateToken, verifyOwnership, changePassword);
+
+/**
+ * @swagger
+ * /users/hard/{id}:
+ *   delete:
+ *     summary: Hapus user secara permanen (Protected)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -182,17 +271,21 @@ RouteUser.put("/:id", updateUSers);
  *     responses:
  *       200:
  *         description: User berhasil dihapus
+ *       401:
+ *         description: Token tidak valid
  *       404:
  *         description: User tidak ditemukan
  */
-RouteUser.delete("/hard/:id", hardDeleteController);
+RouteUser.delete("/hard/:id", authenticateToken, verifyOwnership, hardDeleteController);
 
 /**
  * @swagger
- * /api/users/soft/{id}:
+ * /users/soft/{id}:
  *   delete:
- *     summary: Hapus user secara soft delete
+ *     summary: Hapus user secara soft delete (Protected)
  *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -203,9 +296,11 @@ RouteUser.delete("/hard/:id", hardDeleteController);
  *     responses:
  *       200:
  *         description: User berhasil di-soft delete
+ *       401:
+ *         description: Token tidak valid
  *       404:
  *         description: User tidak ditemukan
  */
-RouteUser.delete("/soft/:id", softDeleteController);
+RouteUser.delete("/soft/:id", authenticateToken, verifyOwnership, softDeleteController);
 
 export default RouteUser;
