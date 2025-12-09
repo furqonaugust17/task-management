@@ -35,7 +35,9 @@ model TaskManagement {
   status      TaskStatus   @default(todo)
   priority    TaskPriority @default(medium)
   
-  dueDate     DateTime?    @db.Date 
+  dueDate     DateTime?    @db.Date
+   
+  reminderAt  DateTime?
 
   owner       String?      
 
