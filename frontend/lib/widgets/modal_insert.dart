@@ -16,7 +16,6 @@ class ModalInsert extends StatelessWidget {
           children: [
             Column(
               mainAxisAlignment: MainAxisAlignment.start,
-              spacing: 20,
               children: [
                 TextFormField(
                   decoration: InputDecoration(
@@ -81,7 +80,7 @@ class ModalInsert extends StatelessWidget {
                 style: ButtonStyle(
                   shape: WidgetStatePropertyAll(
                     RoundedRectangleBorder(
-                      borderRadius: BorderRadiusGeometry.circular(20),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                   ),
                   backgroundColor: WidgetStatePropertyAll<Color?>(

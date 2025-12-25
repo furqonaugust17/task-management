@@ -48,7 +48,7 @@ class _ScreenState extends State<Screen> {
           children: [
             Icon(Icons.person, size: 40),
             Padding(
-              padding: EdgeInsetsGeometry.only(left: 10),
+              padding: EdgeInsets.only(left: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

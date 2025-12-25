@@ -74,7 +74,7 @@ class Dashboard extends StatelessWidget {
                     shadowColor: Colors.transparent,
                     child: ListTile(
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadiusGeometry.circular(15),
+                        borderRadius: BorderRadius.circular(15),
                       ),
                       tileColor: Colors.white,
                       title: Text(
