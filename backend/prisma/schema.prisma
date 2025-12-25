@@ -44,4 +44,12 @@ model TaskManagement {
   deletedAt   DateTime?
 
   @@map("task_management")
+model User {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  password  String    
+  createdAt DateTime  @default(now())
+  upadtedAt DateTime  @updatedAt
+  deletedAt DateTime?
 }
