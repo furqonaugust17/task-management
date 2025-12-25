@@ -13,6 +13,37 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Tabel TaskManagement
+
+enum TaskStatus {
+  todo
+  in_progress
+  done
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+}
+
+model TaskManagement {
+  id          String       @id @default(uuid())
+  title       String       @db.VarChar(100)
+  description String       @db.Text
+  
+  status      TaskStatus   @default(todo)
+  priority    TaskPriority @default(medium)
+  
+  dueDate     DateTime?    @db.Date 
+
+  owner       String?      
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  @@map("task_management")
 model User {
   id        String    @id @default(uuid())
   name      String
